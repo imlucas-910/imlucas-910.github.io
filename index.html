@@ -1,1 +1,304 @@
-Hello World
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HELLO</title>
+    <style>
+        /* 基础重置与全屏布局 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0a0a1a; /* 深色背景，让粒子更明显 */
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 画布覆盖整个视口，位于底层 */
+        #particleCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            z-index: 1;
+        }
+
+        /* 文字容器定位在屏幕中央，位于画布上方 */
+        .hello-container {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* 让鼠标事件穿透到画布，方便粒子交互（如果需要） */
+        }
+
+        /* 大大的HELLO文字 */
+        .hello-text {
+            font-size: clamp(4rem, 20vw, 15rem); /* 响应式超大字体，最小4rem，最大15rem */
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            color: #ffffff;
+            text-shadow: 
+                0 0 10px rgba(0, 200, 255, 0.8),
+                0 0 20px rgba(0, 150, 255, 0.6),
+                0 0 40px rgba(100, 0, 255, 0.5),
+                0 0 80px rgba(0, 50, 255, 0.3);
+            animation: glowPulse 3s infinite alternate;
+            user-select: none;
+            transform: scale(1);
+            transition: transform 0.3s ease;
+        }
+
+        /* 文字柔和呼吸光效 */
+        @keyframes glowPulse {
+            0% {
+                text-shadow: 
+                    0 0 10px rgba(0, 220, 255, 0.7),
+                    0 0 25px rgba(0, 150, 255, 0.6),
+                    0 0 45px rgba(80, 0, 255, 0.5),
+                    0 0 90px rgba(0, 80, 255, 0.4);
+                opacity: 0.95;
+            }
+            100% {
+                text-shadow: 
+                    0 0 20px rgba(0, 255, 255, 0.9),
+                    0 0 40px rgba(50, 180, 255, 0.8),
+                    0 0 70px rgba(150, 0, 255, 0.7),
+                    0 0 120px rgba(0, 120, 255, 0.6);
+                opacity: 1;
+            }
+        }
+
+        /* 可选：轻微浮动效果，增加生动感 */
+        .hello-text {
+            animation: glowPulse 3s infinite alternate, float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+            100% { transform: translateY(0px); }
+        }
+
+        /* 针对小屏优化，防止文字溢出 */
+        @media (max-width: 600px) {
+            .hello-text {
+                font-size: clamp(3rem, 25vw, 8rem);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 粒子画布 -->
+    <canvas id="particleCanvas"></canvas>
+
+    <!-- 中央大大的HELLO -->
+    <div class="hello-container">
+        <div class="hello-text">HELLO</div>
+    </div>
+
+    <script>
+        (function() {
+            const canvas = document.getElementById('particleCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // 粒子系统参数
+            let width, height;
+            let particles = [];
+            const PARTICLE_COUNT = 120;          // 粒子数量 (可调整，保持流畅)
+            const MAX_SPEED = 0.6;               // 最大移动速度
+            const CONNECT_DISTANCE = 140;         // 粒子连线距离阈值
+            const MOUSE_RADIUS = 150;             // 鼠标影响半径 (用于轻微互动)
+
+            // 鼠标位置（用于粒子与鼠标的微弱互动，非必须但有趣）
+            let mouse = { x: null, y: null };
+
+            // 初始化画布尺寸
+            function resizeCanvas() {
+                width = window.innerWidth;
+                height = window.innerHeight;
+                canvas.width = width;
+                canvas.height = height;
+                // 重新初始化粒子位置（适应新尺寸）
+                initParticles();
+            }
+
+            // 粒子类 (使用普通对象以提升性能)
+            function createParticle() {
+                return {
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    vx: (Math.random() - 0.5) * MAX_SPEED * 2,
+                    vy: (Math.random() - 0.5) * MAX_SPEED * 2,
+                    radius: Math.random() * 2.5 + 1.2, // 半径 1.2~3.7
+                    // 颜色范围：蓝紫色调，半透明
+                    hue: Math.random() * 40 + 200,      // 200~240 (蓝色到靛紫)
+                    alpha: Math.random() * 0.5 + 0.4,   // 0.4~0.9
+                };
+            }
+
+            // 初始化/重置粒子数组
+            function initParticles() {
+                particles = [];
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    particles.push(createParticle());
+                }
+            }
+
+            // 更新粒子位置
+            function updateParticles() {
+                for (let p of particles) {
+                    // 根据速度移动
+                    p.x += p.vx;
+                    p.y += p.vy;
+
+                    // 边界处理：平滑反弹，并稍微随机改变方向以增加自然感
+                    if (p.x < 0) {
+                        p.x = 0;
+                        p.vx = -p.vx * 0.98 + (Math.random() - 0.5) * 0.1;
+                    } else if (p.x > width) {
+                        p.x = width;
+                        p.vx = -p.vx * 0.98 + (Math.random() - 0.5) * 0.1;
+                    }
+
+                    if (p.y < 0) {
+                        p.y = 0;
+                        p.vy = -p.vy * 0.98 + (Math.random() - 0.5) * 0.1;
+                    } else if (p.y > height) {
+                        p.y = height;
+                        p.vy = -p.vy * 0.98 + (Math.random() - 0.5) * 0.1;
+                    }
+
+                    // 鼠标微弱互动：粒子稍微被鼠标吸引/排斥 (可选)
+                    if (mouse.x !== null && mouse.y !== null) {
+                        const dx = mouse.x - p.x;
+                        const dy = mouse.y - p.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < MOUSE_RADIUS && dist > 0.1) {
+                            // 轻微吸引力 (向鼠标方向加速)
+                            const force = (1 - dist / MOUSE_RADIUS) * 0.06;
+                            p.vx += (dx / dist) * force;
+                            p.vy += (dy / dist) * force;
+                        }
+                    }
+
+                    // 限制速度范围，避免因鼠标互动累积导致过快
+                    const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+                    const maxAllowed = MAX_SPEED * 1.8;
+                    if (speed > maxAllowed) {
+                        p.vx = (p.vx / speed) * maxAllowed;
+                        p.vy = (p.vy / speed) * maxAllowed;
+                    }
+
+                    // 轻微阻尼，使速度不会一直增加 (保留一些随机感)
+                    p.vx *= 0.999;
+                    p.vy *= 0.999;
+                }
+            }
+
+            // 绘制粒子与连线
+            function draw() {
+                // 清空画布 (使用深色半透明覆盖实现拖尾效果，但这里用完全清空+深色背景保持清晰)
+                ctx.clearRect(0, 0, width, height);
+                
+                // 绘制深色背景 (也可以交给CSS背景，但这里画布透明会露出css背景，为了更好的对比，我们保持透明，但背景已在css设置)
+                // 不需要填充，因为css背景是深色，而且粒子有透明度。
+
+                // 绘制所有粒子 (圆形)
+                for (let p of particles) {
+                    ctx.beginPath();
+                    // 颜色使用hsla，产生蓝紫色调
+                    ctx.fillStyle = `hsla(${p.hue}, 80%, 70%, ${p.alpha})`;
+                    ctx.shadowColor = `hsla(${p.hue}, 90%, 70%, 0.9)`; // 轻微发光
+                    ctx.shadowBlur = 10;
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // 绘制粒子之间的连线
+                ctx.shadowBlur = 0; // 连线不需要阴影，提高性能
+                ctx.lineWidth = 1.2;
+                
+                for (let i = 0; i < particles.length; i++) {
+                    const p1 = particles[i];
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const p2 = particles[j];
+                        const dx = p1.x - p2.x;
+                        const dy = p1.y - p2.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+
+                        if (dist < CONNECT_DISTANCE) {
+                            // 透明度随距离变化：越近越不透明
+                            const opacity = (1 - dist / CONNECT_DISTANCE) * 0.5;
+                            // 颜色根据两个粒子的平均色调
+                            const avgHue = (p1.hue + p2.hue) / 2;
+                            ctx.strokeStyle = `hsla(${avgHue}, 80%, 70%, ${opacity})`;
+                            ctx.beginPath();
+                            ctx.moveTo(p1.x, p1.y);
+                            ctx.lineTo(p2.x, p2.y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+
+                // 重置阴影以避免影响下一帧粒子绘制 (我们在粒子绘制中又设置了)
+                // 但每帧开始粒子绘制前会重新设置，所以没关系。不过清除画布后没有任何影响。
+            }
+
+            // 动画循环
+            function animate() {
+                updateParticles();
+                draw();
+                requestAnimationFrame(animate);
+            }
+
+            // 鼠标移动监听 (用于粒子微妙互动)
+            window.addEventListener('mousemove', (e) => {
+                mouse.x = e.clientX;
+                mouse.y = e.clientY;
+            });
+
+            // 鼠标离开窗口时重置
+            window.addEventListener('mouseleave', () => {
+                mouse.x = null;
+                mouse.y = null;
+            });
+
+            // 窗口尺寸变化处理
+            let resizeTimeout;
+            window.addEventListener('resize', () => {
+                // 防抖，避免频繁重置粒子
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    resizeCanvas();
+                }, 150);
+            });
+
+            // 启动一切
+            function init() {
+                resizeCanvas();  // 设置宽高并初始化粒子
+                animate();       // 开始动画循环
+            }
+
+            init();
+
+            // 可选：如果希望粒子在页面不可见时暂停动画以节省资源，可以添加 visibilitychange 监听
+            // 但这不是必须的，保持简单。
+        })();
+    </script>
+</body>
+</html>
